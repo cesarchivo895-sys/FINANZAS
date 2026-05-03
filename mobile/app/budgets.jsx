@@ -4,6 +4,7 @@ import {
 } from 'react-native';
 import { useApp } from '../src/context/AppContext';
 import { useTheme } from '../src/context/ThemeContext';
+import { useNotification } from '../src/context/NotificationContext';
 import { budgetsApi, categoriesApi } from '../src/services/api';
 import { Card } from '../src/components/ui';
 import Animated, { FadeInDown, FadeIn } from 'react-native-reanimated';
@@ -11,6 +12,7 @@ import Animated, { FadeInDown, FadeIn } from 'react-native-reanimated';
 export default function BudgetsScreen() {
   const { user } = useApp();
   const { theme } = useTheme();
+  const { showNotification } = useNotification();
   const { colors, radius, spacing, typography } = theme;
   const [budgets, setBudgets] = useState([]);
   const [status, setStatus] = useState([]);
@@ -41,17 +43,26 @@ export default function BudgetsScreen() {
 
   const handleCreateBudget = async () => {
     if (!newBudget.amount || parseFloat(newBudget.amount) <= 0) {
-      Alert.alert('Error', 'Ingresa un monto válido');
+      showNotification('Ingresa un monto válido', 'error');
       return;
     }
     try {
-      await budgetsApi.create({ amount: parseFloat(newBudget.amount), category_id: newBudget.category_id, user_id: user.id, period: newBudget.period });
-      Alert.alert('✅', 'Presupuesto creado');
+      const result = await budgetsApi.create({
+        amount: parseFloat(newBudget.amount),
+        category_id: newBudget.category_id,
+        user_id: user.id,
+        period: newBudget.period,
+      });
+      if (result.offline) {
+        showNotification('Guardado en modo offline', 'warning');
+      } else {
+        showNotification('Presupuesto creado', 'success');
+      }
       setShowForm(false);
       setNewBudget({ amount: '', category_id: null, period: 'monthly' });
       loadData();
     } catch (error) {
-      Alert.alert('Error', 'No se pudo crear el presupuesto');
+      showNotification('Error al crear presupuesto', 'error');
     }
   };
 
@@ -59,7 +70,15 @@ export default function BudgetsScreen() {
     Alert.alert('Eliminar', '¿Estás seguro?', [
       { text: 'Cancelar' },
       { text: 'Eliminar', style: 'destructive', onPress: async () => {
-        try { await budgetsApi.delete(id); loadData(); } catch (e) { Alert.alert('Error', 'No se pudo eliminar'); }
+        try {
+          const result = await budgetsApi.delete(id);
+          if (result.offline) {
+            showNotification('Eliminado en modo offline', 'warning');
+          }
+          loadData();
+        } catch (e) {
+          showNotification('Error al eliminar', 'error');
+        }
       }},
     ]);
   };

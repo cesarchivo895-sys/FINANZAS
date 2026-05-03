@@ -5,6 +5,7 @@ import {
 import { useRouter } from 'expo-router';
 import { useApp } from '../src/context/AppContext';
 import { useTheme } from '../src/context/ThemeContext';
+import { useNotification } from '../src/context/NotificationContext';
 import { savingsGoalsApi } from '../src/services/api';
 import { validators } from '../src/utils/validators';
 import { Card } from '../src/components/ui';
@@ -49,7 +50,7 @@ export default function AddSavingsGoalScreen() {
     if (!validate()) return;
     setSaving(true);
     try {
-      await savingsGoalsApi.create({
+      const result = await savingsGoalsApi.create({
         name,
         target_amount: parseFloat(targetAmount),
         deadline: deadline || null,
@@ -59,10 +60,14 @@ export default function AddSavingsGoalScreen() {
         notes: notes || null,
         user_id: user.id,
       });
-      Alert.alert('✅', 'Meta creada exitosamente');
+      if (result.offline) {
+        showNotification('Guardado en modo offline', 'warning');
+      } else {
+        showNotification('Meta creada exitosamente', 'success');
+      }
       router.back();
     } catch (error) {
-      Alert.alert('Error', error.message || 'No se pudo crear la meta');
+      showNotification(error.message || 'Error al crear meta', 'error');
     } finally {
       setSaving(false);
     }

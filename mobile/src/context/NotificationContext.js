@@ -14,7 +14,7 @@ export function NotificationProvider({ children }) {
 
   const showNotification = useCallback((message, type = 'info') => {
     setNotif({ message, type });
-    setTimeout(() => setNotif(null), 3000);
+    setTimeout(() => setNotif(null), 4000);
   }, []);
 
   const hideNotification = useCallback(() => setNotif(null), []);
@@ -26,11 +26,19 @@ export function NotificationProvider({ children }) {
     info: '#3B82F6',
   };
 
+  const icons = {
+    success: '✓',
+    error: '✕',
+    warning: '⚠',
+    info: 'ℹ',
+  };
+
   return (
     <NotificationContext.Provider value={{ showNotification, hideNotification }}>
       {children}
       {notif && (
         <View style={[styles.container, { backgroundColor: bgColor[notif.type] || bgColor.info }]}>
+          <Text style={styles.iconText}>{icons[notif.type] || icons.info}</Text>
           <Text style={styles.text}>{notif.message}</Text>
           <TouchableOpacity onPress={hideNotification}>
             <Text style={styles.close}>✕</Text>
@@ -53,6 +61,16 @@ const styles = StyleSheet.create({
     padding: 14,
     borderRadius: 12,
     justifyContent: 'space-between',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  iconText: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    marginRight: 10,
   },
   text: {
     color: '#FFFFFF',

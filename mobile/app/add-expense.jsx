@@ -5,6 +5,7 @@ import {
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useApp } from '../src/context/AppContext';
 import { useTheme } from '../src/context/ThemeContext';
+import { useNotification } from '../src/context/NotificationContext';
 import { expensesApi, categoriesApi } from '../src/services/api';
 import { validators } from '../src/utils/validators';
 import { Card } from '../src/components/ui';
@@ -15,6 +16,7 @@ export default function AddExpenseScreen() {
   const { theme } = useTheme();
   const router = useRouter();
   const params = useLocalSearchParams();
+  const { showNotification } = useNotification();
   const { colors, radius, spacing, typography } = theme;
 
   const [description, setDescription] = useState('');
@@ -59,7 +61,7 @@ export default function AddExpenseScreen() {
 
     setLoading(true);
     try {
-      await expensesApi.create({
+      const result = await expensesApi.create({
         amount: parseFloat(amount),
         description: description.trim(),
         category_id: selectedCategory?.id,
@@ -67,10 +69,14 @@ export default function AddExpenseScreen() {
         date,
         type,
       });
-      Alert.alert('✅', type === 'expense' ? 'Gasto registrado correctamente' : 'Ingreso registrado correctamente');
+      if (result.offline) {
+        showNotification('Guardado en modo offline', 'warning');
+      } else {
+        showNotification(type === 'expense' ? 'Gasto registrado' : 'Ingreso registrado', 'success');
+      }
       router.back();
     } catch (error) {
-      Alert.alert('Error', error.message || 'No se pudo guardar el registro');
+      showNotification(error.message || 'Error al guardar', 'error');
     } finally {
       setLoading(false);
     }

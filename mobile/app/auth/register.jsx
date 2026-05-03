@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import {
-  View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView,
+  View, Text, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useApp } from '../../src/context/AppContext';
+import { useNotification } from '../../src/context/NotificationContext';
 import { validators } from '../../src/utils/validators';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -43,7 +44,7 @@ export default function RegisterScreen() {
       await register(name.trim(), email.trim(), password, currency);
       router.replace('/');
     } catch (error) {
-      Alert.alert('Error', error.message || 'No se pudo registrar');
+      showNotification(error.message || 'No se pudo registrar', 'error');
     } finally {
       setLoading(false);
     }

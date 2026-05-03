@@ -15,6 +15,11 @@ function getErrorMessage(error) {
   return 'Algo salió mal';
 }
 
+// Override console.error for API errors (useful for debugging)
+function logError(context, error) {
+  console.error(`[API ${context}]`, getErrorMessage(error));
+}
+
 export const authApi = {
   register: async (name, email, password, currency) => {
     const { data, error } = await supabase.auth.signUp({
