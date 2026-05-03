@@ -5,7 +5,9 @@ import {
 import { useRouter } from 'expo-router';
 import { useApp } from '../src/context/AppContext';
 import { useTheme } from '../src/context/ThemeContext';
+import { useNotification } from '../src/context/NotificationContext';
 import { expensesApi } from '../src/services/api';
+import { syncPending } from '../src/services/offlineSync';
 import { Card } from '../src/components/ui';
 import Animated, { FadeInDown, FadeIn, Layout } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
@@ -13,11 +15,13 @@ import { Ionicons } from '@expo/vector-icons';
 export default function HomeScreen() {
   const { user, logout, loading: authLoading } = useApp();
   const { theme, toggleTheme, isDark } = useTheme();
+  const { showNotification } = useNotification();
   const router = useRouter();
   const [expenses, setExpenses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedPeriod, setSelectedPeriod] = useState('monthly');
+  const [syncStatus, setSyncStatus] = useState(null);
 
   const { colors, radius, spacing, typography } = theme;
 
@@ -39,6 +43,25 @@ export default function HomeScreen() {
     } finally {
       setLoading(false);
       setRefreshing(false);
+    }
+  };
+
+  const handleSync = async () => {
+    try {
+      setSyncStatus('syncing');
+      const result = await syncPending();
+      setSyncStatus('done');
+      if (result.synced > 0) {
+        showNotification(`Sincronizados ${result.synced} registros`, 'success');
+        loadExpenses();
+      } else {
+        showNotification('Todo sincronizado', 'info');
+      }
+      setTimeout(() => setSyncStatus(null), 3000);
+    } catch (error) {
+      setSyncStatus('error');
+      showNotification('Error al sincronizar', 'error');
+      setTimeout(() => setSyncStatus(null), 3000);
     }
   };
 
@@ -106,6 +129,13 @@ export default function HomeScreen() {
           <View style={styles.headerActions}>
             <TouchableOpacity onPress={toggleTheme} style={styles.headerButton}>
               <Ionicons name={isDark ? 'sunny' : 'moon'} size={22} color="#FFFFFF" />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={handleSync} style={styles.headerButton}>
+              {syncStatus === 'syncing' ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Ionicons name="sync" size={22} color={syncStatus === 'error' ? '#EF4444' : '#FFFFFF'} />
+              )}
             </TouchableOpacity>
             <TouchableOpacity onPress={() => router.push('/settings')} style={styles.headerButton}>
               <Ionicons name="settings-outline" size={22} color="#FFFFFF" />
