@@ -4,6 +4,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useApp } from '../../src/context/AppContext';
+import { validators } from '../../src/utils/validators';
 import { Ionicons } from '@expo/vector-icons';
 
 export default function RegisterScreen() {
@@ -15,20 +16,28 @@ export default function RegisterScreen() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [currency, setCurrency] = useState('USD');
   const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState({});
+
+  const validate = () => {
+    const newErrors = {};
+    const nameError = validators.required(name, 'Nombre');
+    if (nameError) newErrors.name = nameError;
+
+    const emailError = validators.email(email);
+    if (emailError) newErrors.email = emailError;
+
+    const passError = validators.password(password);
+    if (passError) newErrors.password = passError;
+
+    const confirmError = validators.confirmPassword(password, confirmPassword);
+    if (confirmError) newErrors.confirmPassword = confirmError;
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
 
   const handleRegister = async () => {
-    if (!name.trim() || !email.trim() || !password.trim()) {
-      Alert.alert('Error', 'Completa todos los campos');
-      return;
-    }
-    if (password !== confirmPassword) {
-      Alert.alert('Error', 'Las contraseñas no coinciden');
-      return;
-    }
-    if (password.length < 6) {
-      Alert.alert('Error', 'La contraseña debe tener al menos 6 caracteres');
-      return;
-    }
+    if (!validate()) return;
     setLoading(true);
     try {
       await register(name.trim(), email.trim(), password, currency);
@@ -61,34 +70,38 @@ export default function RegisterScreen() {
         <View style={styles.form}>
           <View style={styles.field}>
             <Text style={styles.label}>Nombre</Text>
-            <View style={styles.inputContainer}>
+            <View style={[styles.inputContainer, errors.name && styles.inputError]}>
               <Ionicons name="person-outline" size={20} color="#888" style={styles.icon} />
-              <TextInput style={styles.input} placeholder="Tu nombre" value={name} onChangeText={setName} placeholderTextColor="#999" />
+              <TextInput style={styles.input} placeholder="Tu nombre" value={name} onChangeText={(text) => { setName(text); setErrors({...errors, name: undefined}); }} placeholderTextColor="#999" />
             </View>
+            {errors.name && <Text style={styles.errorText}>{errors.name}</Text>}
           </View>
 
           <View style={styles.field}>
             <Text style={styles.label}>Email</Text>
-            <View style={styles.inputContainer}>
+            <View style={[styles.inputContainer, errors.email && styles.inputError]}>
               <Ionicons name="mail-outline" size={20} color="#888" style={styles.icon} />
-              <TextInput style={styles.input} placeholder="tu@email.com" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" placeholderTextColor="#999" />
+              <TextInput style={styles.input} placeholder="tu@email.com" value={email} onChangeText={(text) => { setEmail(text); setErrors({...errors, email: undefined}); }} keyboardType="email-address" autoCapitalize="none" placeholderTextColor="#999" />
             </View>
+            {errors.email && <Text style={styles.errorText}>{errors.email}</Text>}
           </View>
 
           <View style={styles.field}>
             <Text style={styles.label}>Contraseña</Text>
-            <View style={styles.inputContainer}>
+            <View style={[styles.inputContainer, errors.password && styles.inputError]}>
               <Ionicons name="lock-closed-outline" size={20} color="#888" style={styles.icon} />
-              <TextInput style={styles.input} placeholder="Mínimo 6 caracteres" value={password} onChangeText={setPassword} secureTextEntry placeholderTextColor="#999" />
+              <TextInput style={styles.input} placeholder="Mínimo 6 caracteres" value={password} onChangeText={(text) => { setPassword(text); setErrors({...errors, password: undefined}); }} secureTextEntry placeholderTextColor="#999" />
             </View>
+            {errors.password && <Text style={styles.errorText}>{errors.password}</Text>}
           </View>
 
           <View style={styles.field}>
             <Text style={styles.label}>Confirmar Contraseña</Text>
-            <View style={styles.inputContainer}>
+            <View style={[styles.inputContainer, errors.confirmPassword && styles.inputError]}>
               <Ionicons name="lock-closed-outline" size={20} color="#888" style={styles.icon} />
-              <TextInput style={styles.input} placeholder="Repite tu contraseña" value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry placeholderTextColor="#999" />
+              <TextInput style={styles.input} placeholder="Repite tu contraseña" value={confirmPassword} onChangeText={(text) => { setConfirmPassword(text); setErrors({...errors, confirmPassword: undefined}); }} secureTextEntry placeholderTextColor="#999" />
             </View>
+            {errors.confirmPassword && <Text style={styles.errorText}>{errors.confirmPassword}</Text>}
           </View>
 
           <View style={styles.field}>
@@ -129,8 +142,10 @@ const styles = StyleSheet.create({
   field: { marginBottom: 18 },
   label: { fontSize: 14, fontWeight: '600', color: '#333', marginBottom: 8 },
   inputContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f5f5f5', borderRadius: 12, paddingHorizontal: 15 },
+  inputError: { borderWidth: 1, borderColor: '#FF6B6B', backgroundColor: '#FFF5F5' },
   icon: { marginRight: 10 },
   input: { flex: 1, paddingVertical: 15, fontSize: 16, color: '#333' },
+  errorText: { fontSize: 12, color: '#FF6B6B', marginTop: 4, marginLeft: 4 },
   currencyRow: { flexDirection: 'row', gap: 10 },
   currencyItem: { flex: 1, alignItems: 'center', padding: 12, borderRadius: 10, backgroundColor: '#f5f5f5', borderWidth: 2, borderColor: 'transparent' },
   currencyItemSelected: { borderColor: '#4A90D9', backgroundColor: '#e8f0fe' },

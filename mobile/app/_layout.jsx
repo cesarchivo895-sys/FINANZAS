@@ -1,6 +1,7 @@
 import { Stack } from 'expo-router';
 import { AppProvider } from '../src/context/AppContext';
 import { ThemeProvider, useTheme } from '../src/context/ThemeContext';
+import { NotificationProvider, useNotification } from '../src/context/NotificationContext';
 import { StatusBar } from 'expo-status-bar';
 
 function StackNavigator() {
@@ -42,7 +43,9 @@ export default function RootLayout() {
   return (
     <ThemeProvider>
       <AppProvider>
-        <StackNavigator />
+        <NotificationProvider>
+          <StackNavigator />
+        </NotificationProvider>
       </AppProvider>
     </ThemeProvider>
   );

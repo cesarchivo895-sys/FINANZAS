@@ -1,5 +1,19 @@
 import { supabase } from './supabase';
-import { saveExpenseOffline, deleteExpenseOffline, syncPending, getOfflineExpenses, cacheCategories, getCachedCategories, isOnline } from './offlineSync';
+import {
+  saveExpenseOffline, deleteExpenseOffline, syncPending, getOfflineExpenses,
+  saveBudgetOffline, deleteBudgetOffline,
+  saveSavingsGoalOffline, deleteSavingsGoalOffline, saveContributionOffline, deleteContributionOffline,
+  cacheCategories, getCachedCategories, isOnline
+} from './offlineSync';
+
+function getErrorMessage(error) {
+  if (!error) return 'Algo salió mal';
+  if (typeof error === 'string') return error;
+  if (error.message) return error.message;
+  if (error.error) return error.error;
+  if (error.data?.error) return error.data.error;
+  return 'Algo salió mal';
+}
 
 export const authApi = {
   register: async (name, email, password, currency) => {
@@ -192,6 +206,11 @@ export const budgetsApi = {
     return { data };
   },
   create: async (data) => {
+    const online = await isOnline();
+    if (!online) {
+      const id = await saveBudgetOffline(data);
+      return { data: { id, ...data, sync_status: 'pending' }, offline: true };
+    }
     const { data: result, error } = await supabase.from('budgets').insert([data]).select().single();
     if (error) throw error;
     return { data: result };
@@ -202,6 +221,11 @@ export const budgetsApi = {
     return { data: result };
   },
   delete: async (id) => {
+    const online = await isOnline();
+    if (!online) {
+      await deleteBudgetOffline(id);
+      return { offline: true };
+    }
     const { error } = await supabase.from('budgets').delete().eq('id', id);
     if (error) throw error;
     return { message: 'Presupuesto eliminado' };
@@ -335,6 +359,146 @@ export const savingsGoalsApi = {
       remaining: goal.target_amount - goal.current_amount,
     }));
     return { data: goalsWithProgress };
+  },
+
+  getById: async (id) => {
+    const { data: goal, error } = await supabase.from('savings_goals').select('*').eq('id', id).single();
+    if (error) throw error;
+    if (!goal) throw new Error('Meta no encontrada');
+
+    const { data: contributions, error: contribError } = await supabase
+      .from('savings_contributions')
+      .select('*')
+      .eq('goal_id', goal.id)
+      .order('date', { ascending: false });
+    if (contribError) throw contribError;
+
+    return {
+      data: {
+        ...goal,
+        progress: goal.target_amount > 0 ? (goal.current_amount / goal.target_amount) * 100 : 0,
+        remaining: goal.target_amount - goal.current_amount,
+        contributions: contributions || [],
+      },
+    };
+  },
+
+  create: async (data) => {
+    const online = await isOnline();
+    if (!online) {
+      const id = await saveSavingsGoalOffline(data);
+      return { data: { id, ...data, current_amount: 0, sync_status: 'pending' }, offline: true };
+    }
+    const { data: result, error } = await supabase.from('savings_goals').insert([{
+      ...data,
+      target_amount: parseFloat(data.target_amount),
+      current_amount: 0,
+    }]).select().single();
+    if (error) throw error;
+    return { data: result };
+  },
+
+  update: async (id, data) => {
+    const { data: result, error } = await supabase
+      .from('savings_goals')
+      .update({ ...data, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select()
+      .single();
+    if (error) throw error;
+    return { data: result };
+  },
+
+  delete: async (id) => {
+    const online = await isOnline();
+    if (!online) {
+      await deleteSavingsGoalOffline(id);
+      return { offline: true };
+    }
+    const { error } = await supabase.from('savings_goals').delete().eq('id', id);
+    if (error) throw error;
+    return { message: 'Meta eliminada' };
+  },
+
+  contribute: async (goalId, amount, date, note) => {
+    const online = await isOnline();
+    if (!online) {
+      const id = await saveContributionOffline({ goal_id: goalId, amount, date, note });
+      return { data: { id, goal_id: goalId, amount, date, note, sync_status: 'pending' }, offline: true };
+    }
+    const { data: goal, error: goalError } = await supabase
+      .from('savings_goals')
+      .select('current_amount, target_amount')
+      .eq('id', goalId)
+      .single();
+    if (goalError) throw goalError;
+
+    const newAmount = goal.current_amount + parseFloat(amount);
+
+    const { data: contribution, error: contribError } = await supabase
+      .from('savings_contributions')
+      .insert([{ goal_id: goalId, amount: parseFloat(amount), date: date || new Date().toISOString().split('T')[0], note }])
+      .select()
+      .single();
+    if (contribError) throw contribError;
+
+    await supabase
+      .from('savings_goals')
+      .update({ current_amount: newAmount, updated_at: new Date().toISOString() })
+      .eq('id', goalId);
+
+    return {
+      data: {
+        contribution,
+        goal: {
+          ...goal,
+          current_amount: newAmount,
+          progress: goal.target_amount > 0 ? (newAmount / goal.target_amount) * 100 : 0,
+        },
+      },
+    };
+  },
+
+  deleteContribution: async (goalId, contributionId) => {
+    const { data: contribution, error: contribError } = await supabase
+      .from('savings_contributions')
+      .select('amount')
+      .eq('id', contributionId)
+      .eq('goal_id', goalId)
+      .single();
+    if (contribError) throw contribError;
+
+    const { error: deleteError } = await supabase
+      .from('savings_contributions')
+      .delete()
+      .eq('id', contributionId)
+      .eq('goal_id', goalId);
+    if (deleteError) throw deleteError;
+
+    await supabase.rpc('decrement_savings_goal', {
+      goal_id: goalId,
+      amount_to_subtract: contribution.amount,
+    });
+
+    return { message: 'Contribución eliminada' };
+  },
+
+  getSummary: async () => {
+    const { data: goals, error } = await supabase.from('savings_goals').select('target_amount, current_amount, status');
+    if (error) throw error;
+    const totalTarget = (goals || []).reduce((sum, g) => sum + parseFloat(g.target_amount),0);
+    const totalSaved = (goals || []).reduce((sum, g) => sum + parseFloat(g.current_amount),0);
+    const activeGoals = (goals || []).filter(g => g.status === 'active').length;
+    const completedGoals = (goals || []).filter(g => g.status === 'completed').length;
+    return {
+      data: {
+        totalTarget,
+        totalSaved,
+        totalProgress: totalTarget > 0 ? (totalSaved / totalTarget) * 100 : 0,
+        activeGoals,
+        completedGoals,
+      },
+    };
   },
 
   getById: async (id) => {

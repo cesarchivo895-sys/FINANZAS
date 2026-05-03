@@ -6,6 +6,7 @@ import { useRouter } from 'expo-router';
 import { useApp } from '../src/context/AppContext';
 import { useTheme } from '../src/context/ThemeContext';
 import { savingsGoalsApi } from '../src/services/api';
+import { validators } from '../src/utils/validators';
 import { Card } from '../src/components/ui';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
@@ -25,12 +26,27 @@ export default function AddSavingsGoalScreen() {
   const [color, setColor] = useState('#6C63FF');
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
+  const [errors, setErrors] = useState({});
+
+  const validate = () => {
+    const newErrors = {};
+    const nameError = validators.required(name, 'Nombre');
+    if (nameError) newErrors.name = nameError;
+
+    const amountError = validators.amount(targetAmount, 'Monto objetivo');
+    if (amountError) newErrors.targetAmount = amountError;
+
+    if (deadline) {
+      const dateError = validators.date(deadline);
+      if (dateError) newErrors.deadline = dateError;
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
 
   const handleSubmit = async () => {
-    if (!name || !targetAmount || parseFloat(targetAmount) <= 0) {
-      Alert.alert('Error', 'Ingresa un nombre y un monto válido');
-      return;
-    }
+    if (!validate()) return;
     setSaving(true);
     try {
       await savingsGoalsApi.create({
@@ -46,7 +62,7 @@ export default function AddSavingsGoalScreen() {
       Alert.alert('✅', 'Meta creada exitosamente');
       router.back();
     } catch (error) {
-      Alert.alert('Error', 'No se pudo crear la meta');
+      Alert.alert('Error', error.message || 'No se pudo crear la meta');
     } finally {
       setSaving(false);
     }
@@ -74,22 +90,24 @@ export default function AddSavingsGoalScreen() {
         <Card variant="outlined">
           <Text style={[styles.label, { color: colors.text }]}>Nombre de la meta</Text>
           <TextInput
-            style={[styles.input, { backgroundColor: colors.background, color: colors.text, borderColor: colors.border }]}
+            style={[styles.input, { backgroundColor: colors.background, color: colors.text, borderColor: errors.name ? colors.danger : colors.border }]}
             placeholder="Ej: Vacaciones 2026"
             value={name}
-            onChangeText={setName}
+            onChangeText={(text) => { setName(text); setErrors({ ...errors, name: undefined }); }}
             placeholderTextColor={colors.textMuted}
           />
+          {errors.name && <Text style={[styles.errorText, { color: colors.danger }]}>{errors.name}</Text>}
 
           <Text style={[styles.label, { color: colors.text }]}>Monto objetivo</Text>
           <TextInput
-            style={[styles.input, { backgroundColor: colors.background, color: colors.text, borderColor: colors.border }]}
+            style={[styles.input, { backgroundColor: colors.background, color: colors.text, borderColor: errors.targetAmount ? colors.danger : colors.border }]}
             placeholder="10000"
             keyboardType="decimal-pad"
             value={targetAmount}
-            onChangeText={setTargetAmount}
+            onChangeText={(text) => { setTargetAmount(text); setErrors({ ...errors, targetAmount: undefined }); }}
             placeholderTextColor={colors.textMuted}
           />
+          {errors.targetAmount && <Text style={[styles.errorText, { color: colors.danger }]}>{errors.targetAmount}</Text>}
 
           {monthlySavings && (
             <View style={[styles.projectionBox, { backgroundColor: `${colors.primary}10`, borderColor: colors.primary }]}>
@@ -104,12 +122,13 @@ export default function AddSavingsGoalScreen() {
 
           <Text style={[styles.label, { color: colors.text }]}>Fecha límite (opcional)</Text>
           <TextInput
-            style={[styles.input, { backgroundColor: colors.background, color: colors.text, borderColor: colors.border }]}
+            style={[styles.input, { backgroundColor: colors.background, color: colors.text, borderColor: errors.deadline ? colors.danger : colors.border }]}
             placeholder="YYYY-MM-DD"
             value={deadline}
-            onChangeText={setDeadline}
+            onChangeText={(text) => { setDeadline(text); setErrors({ ...errors, deadline: undefined }); }}
             placeholderTextColor={colors.textMuted}
           />
+          {errors.deadline && <Text style={[styles.errorText, { color: colors.danger }]}>{errors.deadline}</Text>}
 
           <Text style={[styles.label, { color: colors.text }]}>Icono</Text>
           <View style={styles.iconsRow}>
@@ -180,7 +199,8 @@ export default function AddSavingsGoalScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 16 },
   label: { fontSize: 14, fontWeight: '600', marginBottom: 8, marginTop: 12 },
-  input: { borderRadius: 12, padding: 14, fontSize: 16, borderWidth: 1, marginBottom: 8 },
+  input: { borderRadius: 12, padding: 14, fontSize: 16, borderWidth: 1, marginBottom: 4 },
+  errorText: { fontSize: 12, marginBottom: 8, marginLeft: 4 },
   textArea: { height: 80, textAlignVertical: 'top' },
   projectionBox: { padding: 12, borderRadius: 12, marginBottom: 8, borderWidth: 1 },
   projectionText: { fontSize: 14 },
