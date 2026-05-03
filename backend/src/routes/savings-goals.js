@@ -26,6 +26,28 @@ router.get('/', async (req, res) => {
   res.json(goalsWithProgress);
 });
 
+router.get('/summary', async (req, res) => {
+  const { data: goals, error } = await supabase
+    .from('savings_goals')
+    .select('target_amount, current_amount, status')
+    .eq('user_id', req.user.id);
+
+  if (error) return res.status(500).json({ error: error.message });
+
+  const totalTarget = goals.reduce((sum, g) => sum + parseFloat(g.target_amount), 0);
+  const totalSaved = goals.reduce((sum, g) => sum + parseFloat(g.current_amount), 0);
+  const activeGoals = goals.filter(g => g.status === 'active').length;
+  const completedGoals = goals.filter(g => g.status === 'completed').length;
+
+  res.json({
+    totalTarget,
+    totalSaved,
+    totalProgress: totalTarget > 0 ? (totalSaved / totalTarget) * 100 : 0,
+    activeGoals,
+    completedGoals,
+  });
+});
+
 router.get('/:id', async (req, res) => {
   const { data: goal, error } = await supabase
     .from('savings_goals')
